@@ -107,9 +107,9 @@ return response()->json([
 ## Current Phase
 
 Update this line when starting a phase:
-**Active phase:** Not started — update when beginning
+**Active phase:** BE-1 Foundation (Auth, Models, Migrations, Seeders)
 
-**Branch:** (update when starting)
+**Branch:** phase/be-1-foundation
 
 ---
 
