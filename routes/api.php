@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\V1\AttemptController;
 use App\Http\Controllers\Api\V1\ChatController;
+use App\Http\Controllers\Api\V1\BadgesController;
+use App\Http\Controllers\Api\V1\AnalyticsController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AgentSettingsController;
 use App\Http\Controllers\Api\V1\ProgressController;
@@ -72,4 +74,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Progress
     Route::get('/progress', [ProgressController::class, 'index']);
+    Route::get('/analytics', [AnalyticsController::class, 'index']);
+    Route::get('/badges', [BadgesController::class, 'index']);
 });

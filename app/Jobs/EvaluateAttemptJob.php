@@ -4,13 +4,16 @@ namespace App\Jobs;
 
 use App\Models\ChatSession;
 use App\Models\TopicAttempt;
+use App\Services\BadgeService;
 use App\Services\Evaluation\AttemptEvaluationService;
 use App\Services\Progress\UserProgressService;
+use App\Services\StreakService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class EvaluateAttemptJob implements ShouldQueue
@@ -70,6 +73,11 @@ class EvaluateAttemptJob implements ShouldQueue
                 $result->score,
             );
 
+            $attempt->loadMissing('user');
+
+            app(StreakService::class)->recordActivity($attempt->user);
+            app(BadgeService::class)->checkAndAward($attempt->user, $attempt);
+
             StoreModelAnswerInRagJob::dispatch(
                 attemptId: $attempt->id,
                 modelAnswer: $result->modelAnswer,
@@ -77,8 +85,9 @@ class EvaluateAttemptJob implements ShouldQueue
                 topicTitle: $attempt->topic->title,
             );
 
-            \Illuminate\Support\Facades\Cache::forget("progress:user:{$attempt->user_id}");
-            \Illuminate\Support\Facades\Cache::forget("attempt:status:{$attempt->id}");
+            Cache::forget("analytics:user:{$attempt->user_id}");
+            Cache::forget("progress:user:{$attempt->user_id}");
+            Cache::forget("attempt:status:{$attempt->id}");
         } catch (\Throwable $e) {
             $isFinalAttempt = $this->attempts() >= $this->tries;
 

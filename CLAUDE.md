@@ -107,9 +107,9 @@ return response()->json([
 ## Current Phase
 
 Update this line when starting a phase:
-**Active phase:** BE-5 Chat Sessions and Multi-Agent Chat
+**Active phase:** BE-6 Badges, Streaks, and Analytics
 
-**Branch:** phase/be-5-chat-and-sessions
+**Branch:** phase/be-6-gamification-analytics
 
 ---
 

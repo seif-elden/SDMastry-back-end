@@ -12,6 +12,7 @@ class ChatSession extends Model
 
     protected $fillable = [
         'topic_attempt_id',
+        'provider',
         'created_at',
     ];
 

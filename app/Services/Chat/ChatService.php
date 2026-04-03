@@ -10,6 +10,7 @@ use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\TopicAttempt;
 use App\Models\User;
+use App\Services\BadgeService;
 use App\Services\LLM\LLMProviderFactory;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Log;
@@ -64,15 +65,20 @@ class ChatService
             ->all();
 
         $systemPrompt = $this->buildSystemPrompt($attempt);
+        $providerName = 'unknown';
 
         try {
             $provider = $this->providerFactory->make($user);
+            $providerName = $provider->getProviderName();
             $assistantReply = $provider->chat($systemPrompt, $history);
+
+            $session->provider = $providerName;
+            $session->save();
         } catch (\Throwable $exception) {
             Log::warning('Chat provider call failed', [
                 'attempt_id' => $attempt->id,
                 'user_id' => $user->id,
-                'provider' => isset($provider) ? $provider->getProviderName() : 'unknown',
+                'provider' => $providerName,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -91,6 +97,16 @@ class ChatService
             'content' => $assistantReply,
             'created_at' => now(),
         ]);
+
+        try {
+            app(BadgeService::class)->checkAndAward($user, $attempt);
+        } catch (\Throwable $exception) {
+            Log::notice('Badge check failed during chat message flow', [
+                'attempt_id' => $attempt->id,
+                'user_id' => $user->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         return [
             'message' => (new ChatMessageResource($assistantMessage))->resolve(),
