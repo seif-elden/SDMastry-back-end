@@ -107,9 +107,9 @@ return response()->json([
 ## Current Phase
 
 Update this line when starting a phase:
-**Active phase:** BE-2 Topics and Progress API
+**Active phase:** BE-3 RAG Pipeline with ChromaDB
 
-**Branch:** phase/be-2-topics-and-progress
+**Branch:** phase/be-3-rag-pipeline
 
 ---
 
