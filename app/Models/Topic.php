@@ -37,4 +37,9 @@ class Topic extends Model
     {
         return $this->hasMany(UserTopicProgress::class);
     }
+
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
 }

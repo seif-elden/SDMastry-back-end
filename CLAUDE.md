@@ -107,9 +107,9 @@ return response()->json([
 ## Current Phase
 
 Update this line when starting a phase:
-**Active phase:** BE-1 Foundation (Auth, Models, Migrations, Seeders)
+**Active phase:** BE-2 Topics and Progress API
 
-**Branch:** phase/be-1-foundation
+**Branch:** phase/be-2-topics-and-progress
 
 ---
 

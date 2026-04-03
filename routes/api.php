@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AttemptController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\ProgressController;
+use App\Http\Controllers\Api\V1\TopicController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -31,4 +34,27 @@ Route::prefix('auth')->group(function () {
         Route::post('/email/resend', [AuthController::class, 'resendVerification'])
             ->middleware('throttle:resend-verification');
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Topic Routes — /api/v1/topics/*
+|--------------------------------------------------------------------------
+*/
+Route::get('/topics', [TopicController::class, 'index']);
+Route::get('/topics/{slug}', [TopicController::class, 'show']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Attempt submission requires verified email
+    Route::middleware('verified')->group(function () {
+        Route::post('/topics/{slug}/attempts', [AttemptController::class, 'store']);
+    });
+
+    // Attempt reading only requires auth
+    Route::get('/attempts/{id}', [AttemptController::class, 'show']);
+    Route::get('/attempts/{id}/status', [AttemptController::class, 'status']);
+    Route::get('/topics/{slug}/attempts', [AttemptController::class, 'indexByTopic']);
+
+    // Progress
+    Route::get('/progress', [ProgressController::class, 'index']);
 });
