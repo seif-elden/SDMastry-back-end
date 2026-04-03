@@ -33,6 +33,12 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(3)->by($request->ip());
         });
 
+        RateLimiter::for('chat-messages', function (Request $request) {
+            $limit = (int) config('chat.rate_limit_per_minute', 20);
+
+            return Limit::perMinute($limit)->by($request->user()?->id ?: $request->ip());
+        });
+
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             return config('app.frontend_url') . '/reset-password?token=' . $token . '&email=' . urlencode($notifiable->getEmailForPasswordReset());
         });

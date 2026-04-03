@@ -12,7 +12,15 @@ class ChatSession extends Model
 
     protected $fillable = [
         'topic_attempt_id',
+        'created_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'created_at' => 'datetime',
+        ];
+    }
 
     public function topicAttempt(): BelongsTo
     {
