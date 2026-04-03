@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Topic;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class TopicSeeder extends Seeder
@@ -18,6 +19,8 @@ class TopicSeeder extends Seeder
                 array_merge($topic, ['sort_order' => $index + 1]),
             );
         }
+
+        Cache::forget('topics:all');
     }
 
     private function getTopics(): array
