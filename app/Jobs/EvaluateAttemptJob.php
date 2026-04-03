@@ -66,15 +66,21 @@ class EvaluateAttemptJob implements ShouldQueue
             \Illuminate\Support\Facades\Cache::forget("progress:user:{$attempt->user_id}");
             \Illuminate\Support\Facades\Cache::forget("attempt:status:{$attempt->id}");
         } catch (\Throwable $e) {
-            TopicAttempt::whereKey($this->attemptId)->update([
-                'status' => 'failed',
-                'evaluation' => [
-                    'error' => $e->getMessage(),
-                ],
-            ]);
+            $isFinalAttempt = $this->attempts() >= $this->tries;
+
+            if ($isFinalAttempt) {
+                TopicAttempt::whereKey($this->attemptId)->update([
+                    'status' => 'failed',
+                    'evaluation' => [
+                        'error' => $e->getMessage(),
+                    ],
+                ]);
+            }
 
             Log::error('EvaluateAttemptJob failed', [
                 'attempt_id' => $this->attemptId,
+                'attempt_number' => $this->attempts(),
+                'is_final_attempt' => $isFinalAttempt,
                 'error' => $e->getMessage(),
             ]);
 

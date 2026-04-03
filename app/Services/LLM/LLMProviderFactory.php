@@ -49,12 +49,14 @@ class LLMProviderFactory
      */
     private function makeFromUserKey(User $user, string $provider, callable $resolver): ?LLMProviderInterface
     {
-        $encryptedKey = $user->apiKeys()->where('provider', $provider)->value('encrypted_key');
+        $apiKey = $user->apiKeys()->where('provider', $provider)->first();
 
-        if (! is_string($encryptedKey) || trim($encryptedKey) === '') {
+        $decryptedKey = $apiKey?->encrypted_key;
+
+        if (! is_string($decryptedKey) || trim($decryptedKey) === '') {
             return null;
         }
 
-        return $resolver($encryptedKey);
+        return $resolver($decryptedKey);
     }
 }

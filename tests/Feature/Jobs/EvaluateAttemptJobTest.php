@@ -10,6 +10,7 @@ use App\Models\TopicAttempt;
 use App\Models\User;
 use App\Services\Evaluation\AttemptEvaluationService;
 use App\Services\Progress\UserProgressService;
+use Illuminate\Contracts\Queue\Job as QueueJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
@@ -45,7 +46,7 @@ class EvaluateAttemptJobTest extends TestCase
         $this->assertNotNull($attempt->completed_at);
     }
 
-    public function test_attempt_transitions_to_failed_on_exception(): void
+    public function test_attempt_transitions_to_failed_on_final_exception(): void
     {
         [$attempt, $evaluationService, $progressService] = $this->arrangeSuccessfulDependencies();
 
@@ -53,6 +54,9 @@ class EvaluateAttemptJobTest extends TestCase
         $progressService->shouldReceive('updateAfterAttempt')->never();
 
         $job = new EvaluateAttemptJob($attempt->id);
+        $queueJob = Mockery::mock(QueueJob::class);
+        $queueJob->shouldReceive('attempts')->andReturn(3);
+        $job->setJob($queueJob);
 
         try {
             $job->handle($evaluationService, $progressService);
@@ -65,6 +69,31 @@ class EvaluateAttemptJobTest extends TestCase
 
         $this->assertSame('failed', $attempt->status);
         $this->assertSame('Evaluator timeout', $attempt->evaluation['error']);
+    }
+
+    public function test_attempt_remains_evaluating_on_non_final_exception(): void
+    {
+        [$attempt, $evaluationService, $progressService] = $this->arrangeSuccessfulDependencies();
+
+        $evaluationService->shouldReceive('evaluate')->once()->andThrow(new \RuntimeException('Temporary timeout'));
+        $progressService->shouldReceive('updateAfterAttempt')->never();
+
+        $job = new EvaluateAttemptJob($attempt->id);
+        $queueJob = Mockery::mock(QueueJob::class);
+        $queueJob->shouldReceive('attempts')->andReturn(1);
+        $job->setJob($queueJob);
+
+        try {
+            $job->handle($evaluationService, $progressService);
+            $this->fail('Expected RuntimeException to be thrown.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('Temporary timeout', $e->getMessage());
+        }
+
+        $attempt->refresh();
+
+        $this->assertSame('evaluating', $attempt->status);
+        $this->assertNull($attempt->evaluation);
     }
 
     public function test_cache_is_cleared_after_completion(): void
