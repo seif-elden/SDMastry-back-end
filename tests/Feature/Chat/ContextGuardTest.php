@@ -22,6 +22,7 @@ class ContextGuardTest extends TestCase
         $capturedSystemPrompt = '';
 
         $chatProvider = Mockery::mock(LLMProviderInterface::class);
+        $chatProvider->shouldReceive('getProviderName')->andReturn('ollama');
         $chatProvider->shouldReceive('chat')
             ->once()
             ->withArgs(function (string $systemPrompt, array $messages) use (&$capturedSystemPrompt): bool {
@@ -59,6 +60,7 @@ class ContextGuardTest extends TestCase
         $capturedSystemPrompt = '';
 
         $chatProvider = Mockery::mock(LLMProviderInterface::class);
+        $chatProvider->shouldReceive('getProviderName')->andReturn('ollama');
         $chatProvider->shouldReceive('chat')
             ->once()
             ->withArgs(function (string $systemPrompt, array $messages) use (&$capturedSystemPrompt): bool {

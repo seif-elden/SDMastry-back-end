@@ -74,22 +74,6 @@ class AnalyticsService
                 ->orderBy('id')
                 ->get();
 
-            $scoreTimeline = $timelineAttempts
-                ->groupBy('topic_id')
-                ->map(function ($attempts) {
-                    $topic = $attempts->first()?->topic;
-
-                    return [
-                        'topic_slug' => (string) ($topic?->slug ?? ''),
-                        'topic_title' => (string) ($topic?->title ?? ''),
-                        'attempts' => $attempts->map(fn (TopicAttempt $attempt) => [
-                            'score' => $attempt->score,
-                            'created_at' => optional($attempt->completed_at ?? $attempt->started_at)?->toISOString(),
-                        ])->values()->all(),
-                    ];
-                })
-                ->values()
-                ->all();
 
             $weakAreas = UserTopicProgress::query()
                 ->where('user_id', $userId)
@@ -101,27 +85,9 @@ class AnalyticsService
                 ->map(fn (UserTopicProgress $row) => [
                     'topic_slug' => (string) ($row->topic?->slug ?? ''),
                     'topic_title' => (string) ($row->topic?->title ?? ''),
+                    'category' => (string) ($row->topic?->category ?? ''),
                     'best_score' => (int) $row->best_score,
                     'attempts_count' => (int) $row->attempts_count,
-                ])
-                ->values()
-                ->all();
-
-            $timeSpent = TopicAttempt::query()
-                ->join('topics', 'topics.id', '=', 'topic_attempts.topic_id')
-                ->where('topic_attempts.user_id', $userId)
-                ->whereNotNull('topic_attempts.started_at')
-                ->whereNotNull('topic_attempts.completed_at')
-                ->select(
-                    'topics.slug as topic_slug',
-                    DB::raw('AVG((julianday(topic_attempts.completed_at) - julianday(topic_attempts.started_at)) * 24 * 60) as avg_minutes')
-                )
-                ->groupBy('topics.slug')
-                ->orderBy('topics.slug')
-                ->get()
-                ->map(fn ($row) => [
-                    'topic_slug' => (string) $row->topic_slug,
-                    'avg_minutes' => round((float) $row->avg_minutes, 2),
                 ])
                 ->values()
                 ->all();
@@ -141,24 +107,79 @@ class AnalyticsService
                 ->values()
                 ->all();
 
+            // Average score across all attempts with a score
+            $avgScore = TopicAttempt::query()
+                ->where('user_id', $userId)
+                ->whereNotNull('score')
+                ->avg('score') ?? 0;
+
+            // Last 7 days streak data
+            $last7Days = collect(range(6, 0))->map(function (int $daysAgo) use ($userId): array {
+                $date = now()->subDays($daysAgo)->toDateString();
+                $active = StreakLog::query()
+                    ->where('user_id', $userId)
+                    ->where('activity_date', $date)
+                    ->exists();
+
+                return ['date' => $date, 'active' => $active];
+            })->values()->all();
+
+            // Flatten score_timeline: grouped → flat with attempted_at
+            $flatTimeline = $timelineAttempts->map(fn (TopicAttempt $attempt) => [
+                'topic_slug' => (string) ($attempt->topic?->slug ?? ''),
+                'topic_title' => (string) ($attempt->topic?->title ?? ''),
+                'attempted_at' => optional($attempt->completed_at ?? $attempt->started_at)?->toISOString(),
+                'score' => (int) ($attempt->score ?? 0),
+            ])->values()->all();
+
+            // Add topic_title to time_spent and rename avg_minutes
+            $timeSpentWithTitle = TopicAttempt::query()
+                ->join('topics', 'topics.id', '=', 'topic_attempts.topic_id')
+                ->where('topic_attempts.user_id', $userId)
+                ->whereNotNull('topic_attempts.started_at')
+                ->whereNotNull('topic_attempts.completed_at')
+                ->select(
+                    'topics.slug as topic_slug',
+                    'topics.title as topic_title',
+                    DB::raw('AVG((julianday(topic_attempts.completed_at) - julianday(topic_attempts.started_at)) * 24 * 60) as average_minutes')
+                )
+                ->groupBy('topics.slug', 'topics.title')
+                ->orderBy('topics.slug')
+                ->get()
+                ->map(fn ($row) => [
+                    'topic_slug' => (string) $row->topic_slug,
+                    'topic_title' => (string) $row->topic_title,
+                    'average_minutes' => round((float) $row->average_minutes, 2),
+                ])
+                ->values()
+                ->all();
+
             return [
-                'progress' => [
-                    'total' => $totalTopics,
-                    'passed' => $passedCount,
-                    'core_passed' => $corePassed,
-                    'advanced_passed' => $advancedPassed,
-                    'completion_pct' => $this->percentage($passedCount, $totalTopics),
+                'overview' => [
+                    'topics_mastered' => $passedCount,
+                    'total_topics' => $totalTopics,
+                    'current_streak' => (int) $user->current_streak,
+                    'longest_streak' => (int) $user->longest_streak,
+                    'average_score' => round((float) $avgScore, 1),
                 ],
+                'category_heatmap' => collect($categoryBreakdown)->map(fn (array $row) => [
+                    'category' => $row['category'],
+                    'completed_topics' => $row['passed'],
+                    'total_topics' => $row['total'],
+                    'completion_percentage' => $row['completion_pct'],
+                ])->values()->all(),
+                'score_timeline' => $flatTimeline,
+                'activity_calendar' => collect($activityCalendar)->map(fn (array $row) => [
+                    'date' => $row['date'],
+                    'activity_count' => $row['count'],
+                ])->values()->all(),
+                'weak_areas' => $weakAreas,
+                'time_spent' => $timeSpentWithTitle,
                 'streak' => [
                     'current' => (int) $user->current_streak,
                     'longest' => (int) $user->longest_streak,
-                    'last_active' => optional($user->last_activity_date)?->toDateString(),
+                    'last_7_days' => $last7Days,
                 ],
-                'category_breakdown' => $categoryBreakdown,
-                'score_timeline' => $scoreTimeline,
-                'weak_areas' => $weakAreas,
-                'time_spent' => $timeSpent,
-                'activity_calendar' => $activityCalendar,
             ];
         });
     }

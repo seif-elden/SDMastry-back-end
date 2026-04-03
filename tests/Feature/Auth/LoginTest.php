@@ -25,7 +25,7 @@ class LoginTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure([
                 'success',
-                'data' => ['user' => ['id', 'name', 'email', 'is_verified'], 'token'],
+                'data' => ['user' => ['id', 'name', 'email', 'email_verified_at'], 'token'],
                 'message',
             ])
             ->assertJson(['success' => true]);
@@ -50,7 +50,7 @@ class LoginTest extends TestCase
             ]);
     }
 
-    public function test_unverified_user_can_login_but_is_verified_is_false(): void
+    public function test_unverified_user_can_login_but_email_verified_at_is_null(): void
     {
         $user = User::factory()->create([
             'email' => 'john@example.com',
@@ -67,7 +67,7 @@ class LoginTest extends TestCase
             ->assertJson([
                 'success' => true,
                 'data' => [
-                    'user' => ['is_verified' => false],
+                    'user' => ['email_verified_at' => null],
                 ],
             ]);
     }

@@ -133,7 +133,7 @@ class AttemptEvaluationService
         $parsed = $this->decodeJson($raw);
 
         if ($this->isValidFinalJson($parsed)) {
-            return $this->normalizeFinalJson($parsed);
+            return $this->normalizeFinalJson($parsed, $attempt, $provider, $bookChunks);
         }
 
         $retryPrompt = EvaluationPrompts::synthesizerPrompt(
@@ -150,10 +150,10 @@ class AttemptEvaluationService
         );
 
         if ($this->isValidFinalJson($retryParsed)) {
-            return $this->normalizeFinalJson($retryParsed);
+            return $this->normalizeFinalJson($retryParsed, $attempt, $provider, $bookChunks);
         }
 
-        return $this->fallbackFinalJson($evalA, $evalB, $bookChunks);
+        return $this->fallbackFinalJson($evalA, $evalB, $bookChunks, $attempt, $provider);
     }
 
     /**
@@ -195,6 +195,8 @@ class AttemptEvaluationService
             && is_string($parsed['prompt_to_explain'])
             && is_string($parsed['prompt_to_next'])
             && is_string($parsed['model_answer'])
+                && ! $this->isWeakModelAnswer((string) $parsed['model_answer'])
+            && ! $this->isPlaceholderModelAnswer((string) $parsed['model_answer'])
             && is_array($parsed['rag_sources']);
     }
 
@@ -217,18 +219,30 @@ class AttemptEvaluationService
      * @param  array<string, mixed>  $parsed
      * @return array<string, mixed>
      */
-    private function normalizeFinalJson(array $parsed): array
+    private function normalizeFinalJson(
+        array $parsed,
+        TopicAttempt $attempt,
+        LLMProviderInterface $provider,
+        array $bookChunks,
+    ): array
     {
+        $score = max(0, min(100, (int) $parsed['score']));
+        $modelAnswer = trim((string) $parsed['model_answer']);
+
+        if ($this->isWeakModelAnswer($modelAnswer)) {
+            $modelAnswer = $this->generateCanonicalModelAnswer($attempt, $provider, $bookChunks);
+        }
+
         return [
-            'score' => max(0, min(100, (int) $parsed['score'])),
-            'passed' => (bool) $parsed['passed'],
+            'score' => $score,
+            'passed' => $score >= (int) config('evaluation.pass_threshold', 80),
             'key_strengths' => $this->normalizeStringList($parsed['key_strengths']),
             'key_weaknesses' => $this->normalizeStringList($parsed['key_weaknesses']),
             'concepts_to_study' => $this->normalizeStringList($parsed['concepts_to_study']),
             'brief_assessment' => trim((string) ($parsed['brief_assessment'] ?? 'See key strengths and weaknesses.')),
             'prompt_to_explain' => trim((string) $parsed['prompt_to_explain']),
             'prompt_to_next' => trim((string) $parsed['prompt_to_next']),
-            'model_answer' => trim((string) $parsed['model_answer']),
+            'model_answer' => $modelAnswer,
             'rag_sources' => $this->normalizeRagSources($parsed['rag_sources']),
         ];
     }
@@ -239,7 +253,13 @@ class AttemptEvaluationService
      * @param  array<int, array{text: string, book: string, chapter: string, relevance_score: float}>  $bookChunks
      * @return array<string, mixed>
      */
-    private function fallbackFinalJson(array $evalA, array $evalB, array $bookChunks): array
+    private function fallbackFinalJson(
+        array $evalA,
+        array $evalB,
+        array $bookChunks,
+        TopicAttempt $attempt,
+        LLMProviderInterface $provider,
+    ): array
     {
         $score = (int) round(((int) $evalA['score'] + (int) $evalB['score']) / 2);
         $weakConcept = $evalA['concepts_to_study'][0] ?? $evalB['concepts_to_study'][0] ?? 'distributed systems fundamentals';
@@ -253,7 +273,7 @@ class AttemptEvaluationService
             'brief_assessment' => 'The synthesizer returned malformed JSON. This fallback combines both evaluator outputs.',
             'prompt_to_explain' => 'Ask me to explain ' . $weakConcept . ' in detail',
             'prompt_to_next' => "Ready for the next advanced topic? Let's try it.",
-            'model_answer' => 'The answer should connect core definitions, trade-offs, and practical implementation details while grounding claims in the supplied reference context.',
+            'model_answer' => $this->generateCanonicalModelAnswer($attempt, $provider, $bookChunks),
             'rag_sources' => $this->fallbackRagSources($bookChunks),
         ];
     }
@@ -322,6 +342,65 @@ class AttemptEvaluationService
         }
 
         return $normalized;
+    }
+
+    private function isPlaceholderModelAnswer(string $value): bool
+    {
+        $normalized = strtolower(trim($value));
+
+        return $normalized === 'comprehensive 200-400 word model answer grounded in the reference material'
+            || str_contains($normalized, 'do not output instructions or placeholders')
+            || str_starts_with($normalized, 'write an actual 200-400 word model answer');
+    }
+
+    private function isWeakModelAnswer(string $value): bool
+    {
+        $normalized = strtolower(trim($value));
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        if (mb_strlen($normalized) < 450) {
+            return true;
+        }
+
+        return str_contains($normalized, 'you should')
+            || str_contains($normalized, 'you can')
+            || str_contains($normalized, 'consider ')
+            || str_contains($normalized, 'try to');
+    }
+
+    /**
+     * @param  array<int, array{text: string, book: string, chapter: string, relevance_score: float}>  $bookChunks
+     */
+    private function generateCanonicalModelAnswer(
+        TopicAttempt $attempt,
+        LLMProviderInterface $provider,
+        array $bookChunks,
+    ): string {
+        $contextPieces = array_map(
+            fn (array $chunk) => sprintf('[%s] %s', (string) ($chunk['book'] ?? 'reference'), (string) ($chunk['text'] ?? '')),
+            array_slice($bookChunks, 0, 5),
+        );
+
+        $raw = $provider->chat(EvaluationPrompts::evaluatorSystemPrompt(), [
+            [
+                'role' => 'user',
+                'content' => EvaluationPrompts::canonicalModelAnswerPrompt(
+                    $attempt->topic->hook_question,
+                    implode("\n\n", $contextPieces),
+                ),
+            ],
+        ]);
+
+        $candidate = trim($raw);
+
+        if ($this->isWeakModelAnswer($candidate) || $this->isPlaceholderModelAnswer($candidate)) {
+            return 'A complete high-scoring answer states the core principle, explains trade-offs with concrete engineering consequences, and maps those trade-offs to practical implementation decisions under realistic constraints.';
+        }
+
+        return $candidate;
     }
 
     /**

@@ -22,7 +22,7 @@ class RegistrationTest extends TestCase
         $response->assertStatus(201)
             ->assertJsonStructure([
                 'success',
-                'data' => ['user' => ['id', 'name', 'email', 'is_verified'], 'token'],
+                'data' => ['user' => ['id', 'name', 'email', 'email_verified_at'], 'token'],
                 'message',
             ])
             ->assertJson([
@@ -31,7 +31,7 @@ class RegistrationTest extends TestCase
                     'user' => [
                         'name' => 'John Doe',
                         'email' => 'john@example.com',
-                        'is_verified' => false,
+                        'email_verified_at' => null,
                     ],
                 ],
             ]);

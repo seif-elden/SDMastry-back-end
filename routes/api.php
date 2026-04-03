@@ -28,7 +28,7 @@ Route::prefix('auth')->group(function () {
 
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
-    Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+    Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
         ->name('verification.verify');
 
     // Authenticated

@@ -94,19 +94,17 @@ class AnalyticsTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonStructure([
                 'data' => [
-                    'progress' => ['total', 'passed', 'core_passed', 'advanced_passed', 'completion_pct'],
-                    'streak' => ['current', 'longest', 'last_active'],
-                    'category_breakdown',
+                    'overview' => ['topics_mastered', 'total_topics', 'current_streak', 'longest_streak', 'average_score'],
+                    'streak' => ['current', 'longest', 'last_7_days'],
+                    'category_heatmap',
                     'score_timeline',
                     'weak_areas',
                     'time_spent',
                     'activity_calendar',
                 ],
             ])
-            ->assertJsonPath('data.progress.total', 53)
-            ->assertJsonPath('data.progress.passed', 2)
-            ->assertJsonPath('data.progress.core_passed', 1)
-            ->assertJsonPath('data.progress.advanced_passed', 1);
+            ->assertJsonPath('data.overview.total_topics', 53)
+            ->assertJsonPath('data.overview.topics_mastered', 2);
     }
 
     public function test_activity_calendar_has_correct_date_entries(): void

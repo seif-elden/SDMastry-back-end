@@ -9,6 +9,7 @@ class ChromaClient
 {
     private string $baseUrl;
     private ?string $apiVersion = null;
+    private int $timeoutSeconds = 60;
 
     public function __construct()
     {
@@ -21,7 +22,7 @@ class ChromaClient
             return;
         }
 
-        $response = Http::post($this->collectionsEndpoint(), [
+        $response = $this->request()->post($this->collectionsEndpoint(), [
             'name' => $collection,
             'get_or_create' => true,
         ]);
@@ -35,7 +36,7 @@ class ChromaClient
 
     public function collectionExists(string $collection): bool
     {
-        $response = Http::get($this->collectionsEndpoint());
+        $response = $this->request()->get($this->collectionsEndpoint());
 
         if (! $response->successful()) {
             throw new ChromaException(
@@ -48,6 +49,23 @@ class ChromaClient
         return collect($collections)->contains(fn ($c) => $c['name'] === $collection);
     }
 
+    public function deleteCollectionIfExists(string $collection): bool
+    {
+        if (! $this->collectionExists($collection)) {
+            return false;
+        }
+
+        $response = $this->request()->delete($this->collectionByNameEndpoint($collection));
+
+        if (! $response->successful()) {
+            throw new ChromaException(
+                "Failed to delete collection '{$collection}': {$response->body()}"
+            );
+        }
+
+        return true;
+    }
+
     /**
      * @param  array<int, string>  $documents
      * @param  array<int, array<int, float>>  $embeddings
@@ -58,7 +76,7 @@ class ChromaClient
     {
         $collectionId = $this->getCollectionId($collection);
 
-        $response = Http::post($this->collectionOperationEndpoint($collectionId, 'upsert'), [
+        $response = $this->request()->post($this->collectionOperationEndpoint($collectionId, 'upsert'), [
             'documents' => $documents,
             'embeddings' => $embeddings,
             'metadatas' => $metadatas,
@@ -91,7 +109,7 @@ class ChromaClient
             $payload['where'] = $where;
         }
 
-        $response = Http::post($this->collectionOperationEndpoint($collectionId, 'query'), $payload);
+        $response = $this->request()->post($this->collectionOperationEndpoint($collectionId, 'query'), $payload);
 
         if (! $response->successful()) {
             throw new ChromaException(
@@ -109,9 +127,36 @@ class ChromaClient
         ];
     }
 
+    /**
+     * @return array{ids: array, documents: array, metadatas: array}
+     */
+    public function peek(string $collection, int $limit = 25): array
+    {
+        $collectionId = $this->getCollectionId($collection);
+
+        $response = $this->request()->post($this->collectionOperationEndpoint($collectionId, 'get'), [
+            'limit' => max(1, $limit),
+            'include' => ['documents', 'metadatas'],
+        ]);
+
+        if (! $response->successful()) {
+            throw new ChromaException(
+                "Failed to peek collection '{$collection}': {$response->body()}"
+            );
+        }
+
+        $data = $response->json();
+
+        return [
+            'ids' => $data['ids'] ?? [],
+            'documents' => $data['documents'] ?? [],
+            'metadatas' => $data['metadatas'] ?? [],
+        ];
+    }
+
     private function getCollectionId(string $collection): string
     {
-        $response = Http::get($this->collectionByNameEndpoint($collection));
+        $response = $this->request()->get($this->collectionByNameEndpoint($collection));
 
         if (! $response->successful()) {
             throw new ChromaException(
@@ -135,7 +180,7 @@ class ChromaClient
         }
 
         $v2CollectionsUrl = "{$this->baseUrl}/api/v2/tenants/default_tenant/databases/default_database/collections";
-        $v2Response = Http::get($v2CollectionsUrl);
+        $v2Response = $this->request()->get($v2CollectionsUrl);
 
         if ($v2Response->successful()) {
             $this->apiVersion = 'v2';
@@ -144,7 +189,7 @@ class ChromaClient
         }
 
         $v1CollectionsUrl = "{$this->baseUrl}/api/v1/collections";
-        $v1Response = Http::get($v1CollectionsUrl);
+        $v1Response = $this->request()->get($v1CollectionsUrl);
 
         if ($v1Response->successful()) {
             $this->apiVersion = 'v1';
@@ -174,5 +219,10 @@ class ChromaClient
     private function collectionOperationEndpoint(string $collectionId, string $operation): string
     {
         return $this->collectionsEndpoint() . '/' . $collectionId . '/' . $operation;
+    }
+
+    private function request()
+    {
+        return Http::timeout($this->timeoutSeconds);
     }
 }

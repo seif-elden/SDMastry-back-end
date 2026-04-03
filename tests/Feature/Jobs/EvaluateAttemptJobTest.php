@@ -4,7 +4,6 @@ namespace Tests\Feature\Jobs;
 
 use App\DTO\EvaluationResult;
 use App\Jobs\EvaluateAttemptJob;
-use App\Jobs\StoreModelAnswerInRagJob;
 use App\Models\Topic;
 use App\Models\TopicAttempt;
 use App\Models\User;
@@ -24,8 +23,6 @@ class EvaluateAttemptJobTest extends TestCase
 
     public function test_attempt_transitions_pending_to_evaluating_to_complete(): void
     {
-        Bus::fake([StoreModelAnswerInRagJob::class]);
-
         [$attempt, $evaluationService, $progressService] = $this->arrangeSuccessfulDependencies();
 
         $progressService->shouldReceive('updateAfterAttempt')->once()->with($attempt->user_id, $attempt->topic_id, Mockery::type('int'));
@@ -98,8 +95,6 @@ class EvaluateAttemptJobTest extends TestCase
 
     public function test_cache_is_cleared_after_completion(): void
     {
-        Bus::fake([StoreModelAnswerInRagJob::class]);
-
         [$attempt, $evaluationService, $progressService] = $this->arrangeSuccessfulDependencies();
 
         $progressService->shouldReceive('updateAfterAttempt')->once()->with($attempt->user_id, $attempt->topic_id, Mockery::type('int'));
@@ -116,9 +111,9 @@ class EvaluateAttemptJobTest extends TestCase
         $this->assertNull(Cache::get("attempt:status:{$attempt->id}"));
     }
 
-    public function test_dispatches_store_model_answer_job(): void
+    public function test_does_not_dispatch_store_model_answer_job(): void
     {
-        Bus::fake([StoreModelAnswerInRagJob::class]);
+        Bus::fake();
 
         [$attempt, $evaluationService, $progressService] = $this->arrangeSuccessfulDependencies();
 
@@ -129,11 +124,7 @@ class EvaluateAttemptJobTest extends TestCase
         $job = new EvaluateAttemptJob($attempt->id);
         $job->handle($evaluationService, $progressService);
 
-        Bus::assertDispatched(StoreModelAnswerInRagJob::class, function (StoreModelAnswerInRagJob $job) use ($attempt) {
-            return $job->attemptId === $attempt->id
-                && $job->topicId === $attempt->topic_id
-                && $job->modelAnswer !== '';
-        });
+        Bus::assertNotDispatched(\App\Jobs\StoreModelAnswerInRagJob::class);
     }
 
     /**

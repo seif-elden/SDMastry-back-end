@@ -18,13 +18,11 @@ class EmailVerificationTest extends TestCase
 
         $hash = sha1($user->getEmailForVerification());
 
-        $response = $this->postJson("/api/v1/auth/email/verify/{$user->id}/{$hash}");
+        $response = $this->get("/api/v1/auth/email/verify/{$user->id}/{$hash}");
 
         $response->assertOk()
-            ->assertJson([
-                'success' => true,
-                'message' => 'Email verified successfully.',
-            ]);
+            ->assertHeader('Content-Type', 'text/html; charset=utf-8')
+            ->assertSee('Email verified successfully!');
 
         $this->assertNotNull($user->fresh()->email_verified_at);
     }
@@ -35,13 +33,11 @@ class EmailVerificationTest extends TestCase
             'email_verified_at' => null,
         ]);
 
-        $response = $this->postJson("/api/v1/auth/email/verify/{$user->id}/invalid-hash");
+        $response = $this->get("/api/v1/auth/email/verify/{$user->id}/invalid-hash");
 
         $response->assertStatus(403)
-            ->assertJson([
-                'success' => false,
-                'message' => 'Invalid verification link.',
-            ]);
+            ->assertHeader('Content-Type', 'text/html; charset=utf-8')
+            ->assertSee('Invalid verification link.');
 
         $this->assertNull($user->fresh()->email_verified_at);
     }

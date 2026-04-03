@@ -17,12 +17,11 @@ class RagRetrievalService
         $queryEmbedding = $this->embeddingService->embed($queryText);
 
         $bookChunks = $this->queryBooks($queryEmbedding);
-        $modelAnswers = $this->queryModelAnswers($queryEmbedding);
-        $combinedContext = $this->formatCombinedContext($bookChunks, $modelAnswers);
+        $combinedContext = $this->formatCombinedContext($bookChunks);
 
         return new RagContext(
             bookChunks: $bookChunks,
-            modelAnswers: $modelAnswers,
+            modelAnswers: [],
             combinedContext: $combinedContext,
         );
     }
@@ -55,34 +54,7 @@ class RagRetrievalService
         return $chunks;
     }
 
-    /**
-     * @return array<int, array{text: string, topic: string, relevance_score: float}>
-     */
-    private function queryModelAnswers(array $queryEmbedding): array
-    {
-        $collection = config('rag.collection_answers');
-        $nResults = config('rag.answer_chunks');
-
-        try {
-            $results = $this->chromaClient->query($collection, $queryEmbedding, $nResults);
-        } catch (\Throwable) {
-            return [];
-        }
-
-        $answers = [];
-        foreach ($results['documents'] as $i => $doc) {
-            $meta = $results['metadatas'][$i] ?? [];
-            $answers[] = [
-                'text' => $doc,
-                'topic' => $meta['topic_slug'] ?? 'unknown',
-                'relevance_score' => 1.0 - ($results['distances'][$i] ?? 1.0),
-            ];
-        }
-
-        return $answers;
-    }
-
-    private function formatCombinedContext(array $bookChunks, array $modelAnswers): string
+    private function formatCombinedContext(array $bookChunks): string
     {
         $parts = [];
 
@@ -92,14 +64,6 @@ class RagRetrievalService
                 $bookChunks
             );
             $parts[] = "=== Reference Material ===\n" . implode("\n\n", $bookTexts);
-        }
-
-        if (! empty($modelAnswers)) {
-            $answerTexts = array_map(
-                fn ($answer) => "[Topic: {$answer['topic']}] {$answer['text']}",
-                $modelAnswers
-            );
-            $parts[] = "=== Model Answers from Learners ===\n" . implode("\n\n", $answerTexts);
         }
 
         return implode("\n\n", $parts);

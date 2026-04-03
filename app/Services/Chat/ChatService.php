@@ -161,8 +161,12 @@ class ChatService
     private function buildSystemPrompt(TopicAttempt $attempt): string
     {
         $topic = $attempt->topic;
-        $excerptLength = (int) config('chat.original_answer_excerpt_length', 200);
-        $answerExcerpt = mb_substr($attempt->answer_text, 0, $excerptLength);
+        $evaluation = is_array($attempt->evaluation) ? $attempt->evaluation : [];
+        $strengths = is_array(data_get($evaluation, 'key_strengths')) ? data_get($evaluation, 'key_strengths') : [];
+        $weaknesses = is_array(data_get($evaluation, 'key_weaknesses')) ? data_get($evaluation, 'key_weaknesses') : [];
+        $concepts = is_array(data_get($evaluation, 'concepts_to_study')) ? data_get($evaluation, 'concepts_to_study') : [];
+        $sources = is_array(data_get($evaluation, 'rag_sources')) ? data_get($evaluation, 'rag_sources') : [];
+        $modelAnswer = trim((string) data_get($evaluation, 'model_answer', ''));
 
         $guard = str_replace('{topic_title}', $topic->title, implode("\n", [
             'You are a software engineering tutor. The current topic is: {topic_title}.',
@@ -176,8 +180,18 @@ class ChatService
             $guard,
             'Topic title: ' . $topic->title,
             'Topic description: ' . $topic->description,
+            'Topic key points: ' . implode(', ', is_array($topic->key_points) ? $topic->key_points : []),
             'Hook question: ' . $topic->hook_question,
-            'User original answer excerpt: ' . $answerExcerpt,
+            'User submitted answer: ' . $attempt->answer_text,
+            'Evaluation score: ' . ($attempt->score ?? 'N/A') . '/100',
+            'Passed: ' . (($attempt->passed ?? false) ? 'yes' : 'no'),
+            'Key strengths: ' . implode(' | ', array_map(fn ($item) => (string) $item, $strengths)),
+            'Key weaknesses: ' . implode(' | ', array_map(fn ($item) => (string) $item, $weaknesses)),
+            'Concepts to study: ' . implode(' | ', array_map(fn ($item) => (string) $item, $concepts)),
+            'Brief assessment: ' . (string) data_get($evaluation, 'brief_assessment', ''),
+            'Canonical model answer: ' . $modelAnswer,
+            'Reference sources: ' . json_encode($sources, JSON_UNESCAPED_UNICODE),
+            'When coaching, ground explanations in the weaknesses and concepts_to_study while staying topic-focused.',
         ]);
     }
 

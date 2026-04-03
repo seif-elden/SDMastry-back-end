@@ -78,13 +78,6 @@ class EvaluateAttemptJob implements ShouldQueue
             app(StreakService::class)->recordActivity($attempt->user);
             app(BadgeService::class)->checkAndAward($attempt->user, $attempt);
 
-            StoreModelAnswerInRagJob::dispatch(
-                attemptId: $attempt->id,
-                modelAnswer: $result->modelAnswer,
-                topicId: $attempt->topic_id,
-                topicTitle: $attempt->topic->title,
-            );
-
             Cache::forget("analytics:user:{$attempt->user_id}");
             Cache::forget("progress:user:{$attempt->user_id}");
             Cache::forget("attempt:status:{$attempt->id}");

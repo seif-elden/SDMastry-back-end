@@ -7,6 +7,7 @@ use App\Http\Resources\TopicDetailResource;
 use App\Http\Resources\TopicResource;
 use App\Models\Topic;
 use App\Traits\ApiResponse;
+use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -50,7 +51,17 @@ class TopicController extends Controller
 
         $user = $request->user();
 
-        if ($user && $user->hasVerifiedEmail()) {
+        if (! $user) {
+            $token = $request->bearerToken();
+
+            if ($token) {
+                $tokenModel = PersonalAccessToken::findToken($token);
+                $tokenable = $tokenModel?->tokenable;
+                $user = $tokenable instanceof \App\Models\User ? $tokenable : null;
+            }
+        }
+
+        if ($user) {
             $attempts = $topic->attempts()
                 ->where('user_id', $user->id)
                 ->orderByDesc('started_at')

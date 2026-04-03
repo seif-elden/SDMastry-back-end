@@ -46,7 +46,7 @@ class AttemptController extends Controller
             'started_at' => now(),
         ]);
 
-        EvaluateAttemptJob::dispatch($attempt->id);
+        EvaluateAttemptJob::dispatch($attempt->id)->onQueue('evaluation');
 
         return $this->success([
             'attempt_id' => $attempt->id,

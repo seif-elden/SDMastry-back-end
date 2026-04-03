@@ -75,13 +75,13 @@ class IngestBookCommand extends Command
             $bar->advance();
 
             if (count($batch) >= $batchSize) {
-                IngestBookChunkJob::dispatch($collection, $batch);
+                IngestBookChunkJob::dispatch($collection, $batch)->onQueue('rag');
                 $batch = [];
             }
         }
 
         if (! empty($batch)) {
-            IngestBookChunkJob::dispatch($collection, $batch);
+            IngestBookChunkJob::dispatch($collection, $batch)->onQueue('rag');
         }
 
         $bar->finish();
