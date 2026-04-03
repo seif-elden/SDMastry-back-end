@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AttemptController;
+use App\Http\Controllers\Api\V1\ChatController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\AgentSettingsController;
 use App\Http\Controllers\Api\V1\ProgressController;
 use App\Http\Controllers\Api\V1\TopicController;
 use Illuminate\Support\Facades\Route;
@@ -54,6 +56,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/attempts/{id}', [AttemptController::class, 'show']);
     Route::get('/attempts/{id}/status', [AttemptController::class, 'status']);
     Route::get('/topics/{slug}/attempts', [AttemptController::class, 'indexByTopic']);
+    Route::get('/attempts/{attempt_id}/chat', [ChatController::class, 'index']);
+
+    Route::middleware('verified')->group(function () {
+        Route::post('/attempts/{attempt_id}/chat', [ChatController::class, 'store'])
+            ->middleware('throttle:chat-messages');
+    });
+
+    Route::prefix('settings')->group(function () {
+        Route::get('/agent', [AgentSettingsController::class, 'show']);
+        Route::put('/agent', [AgentSettingsController::class, 'updateAgent']);
+        Route::put('/api-keys/{provider}', [AgentSettingsController::class, 'storeApiKey']);
+        Route::delete('/api-keys/{provider}', [AgentSettingsController::class, 'deleteApiKey']);
+    });
 
     // Progress
     Route::get('/progress', [ProgressController::class, 'index']);

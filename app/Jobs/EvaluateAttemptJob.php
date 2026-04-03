@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\ChatSession;
 use App\Models\TopicAttempt;
 use App\Services\Evaluation\AttemptEvaluationService;
 use App\Services\Progress\UserProgressService;
@@ -49,6 +50,19 @@ class EvaluateAttemptJob implements ShouldQueue
                 'status' => 'complete',
                 'completed_at' => now(),
             ]);
+
+            $chatSession = ChatSession::firstOrCreate(
+                ['topic_attempt_id' => $attempt->id],
+                ['created_at' => now()],
+            );
+
+            if (! $chatSession->messages()->exists()) {
+                $chatSession->messages()->create([
+                    'role' => 'assistant',
+                    'content' => $result->modelAnswer,
+                    'created_at' => now(),
+                ]);
+            }
 
             $progressService->updateAfterAttempt(
                 $attempt->user_id,

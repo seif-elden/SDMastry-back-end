@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Http;
 class ChromaClient
 {
     private string $baseUrl;
+    private ?string $apiVersion = null;
 
     public function __construct()
     {
@@ -20,7 +21,7 @@ class ChromaClient
             return;
         }
 
-        $response = Http::post("{$this->baseUrl}/api/v1/collections", [
+        $response = Http::post($this->collectionsEndpoint(), [
             'name' => $collection,
             'get_or_create' => true,
         ]);
@@ -34,7 +35,7 @@ class ChromaClient
 
     public function collectionExists(string $collection): bool
     {
-        $response = Http::get("{$this->baseUrl}/api/v1/collections");
+        $response = Http::get($this->collectionsEndpoint());
 
         if (! $response->successful()) {
             throw new ChromaException(
@@ -57,7 +58,7 @@ class ChromaClient
     {
         $collectionId = $this->getCollectionId($collection);
 
-        $response = Http::post("{$this->baseUrl}/api/v1/collections/{$collectionId}/upsert", [
+        $response = Http::post($this->collectionOperationEndpoint($collectionId, 'upsert'), [
             'documents' => $documents,
             'embeddings' => $embeddings,
             'metadatas' => $metadatas,
@@ -90,7 +91,7 @@ class ChromaClient
             $payload['where'] = $where;
         }
 
-        $response = Http::post("{$this->baseUrl}/api/v1/collections/{$collectionId}/query", $payload);
+        $response = Http::post($this->collectionOperationEndpoint($collectionId, 'query'), $payload);
 
         if (! $response->successful()) {
             throw new ChromaException(
@@ -110,7 +111,7 @@ class ChromaClient
 
     private function getCollectionId(string $collection): string
     {
-        $response = Http::get("{$this->baseUrl}/api/v1/collections/{$collection}");
+        $response = Http::get($this->collectionByNameEndpoint($collection));
 
         if (! $response->successful()) {
             throw new ChromaException(
@@ -118,6 +119,60 @@ class ChromaClient
             );
         }
 
-        return $response->json('id');
+        $collectionId = $response->json('id');
+
+        if (! is_string($collectionId) || trim($collectionId) === '') {
+            throw new ChromaException("Collection '{$collection}' did not return a valid collection id.");
+        }
+
+        return $collectionId;
+    }
+
+    private function detectApiVersion(): string
+    {
+        if ($this->apiVersion !== null) {
+            return $this->apiVersion;
+        }
+
+        $v2CollectionsUrl = "{$this->baseUrl}/api/v2/tenants/default_tenant/databases/default_database/collections";
+        $v2Response = Http::get($v2CollectionsUrl);
+
+        if ($v2Response->successful()) {
+            $this->apiVersion = 'v2';
+
+            return $this->apiVersion;
+        }
+
+        $v1CollectionsUrl = "{$this->baseUrl}/api/v1/collections";
+        $v1Response = Http::get($v1CollectionsUrl);
+
+        if ($v1Response->successful()) {
+            $this->apiVersion = 'v1';
+
+            return $this->apiVersion;
+        }
+
+        throw new ChromaException(
+            'Unable to detect Chroma API version. '
+            . "v2 response: {$v2Response->status()} {$v2Response->body()}; "
+            . "v1 response: {$v1Response->status()} {$v1Response->body()}"
+        );
+    }
+
+    private function collectionsEndpoint(): string
+    {
+        return $this->detectApiVersion() === 'v2'
+            ? "{$this->baseUrl}/api/v2/tenants/default_tenant/databases/default_database/collections"
+            : "{$this->baseUrl}/api/v1/collections";
+    }
+
+    private function collectionByNameEndpoint(string $collection): string
+    {
+        return $this->collectionsEndpoint() . '/' . $collection;
+    }
+
+    private function collectionOperationEndpoint(string $collectionId, string $operation): string
+    {
+        return $this->collectionsEndpoint() . '/' . $collectionId . '/' . $operation;
     }
 }

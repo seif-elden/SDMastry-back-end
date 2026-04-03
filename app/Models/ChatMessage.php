@@ -13,7 +13,15 @@ class ChatMessage extends Model
         'chat_session_id',
         'role',
         'content',
+        'created_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'created_at' => 'datetime',
+        ];
+    }
 
     public function chatSession(): BelongsTo
     {

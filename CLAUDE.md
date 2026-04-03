@@ -107,9 +107,9 @@ return response()->json([
 ## Current Phase
 
 Update this line when starting a phase:
-**Active phase:** BE-4 Full LLM Evaluation Engine
+**Active phase:** BE-5 Chat Sessions and Multi-Agent Chat
 
-**Branch:** phase/be-4-llm-evaluation
+**Branch:** phase/be-5-chat-and-sessions
 
 ---
 
