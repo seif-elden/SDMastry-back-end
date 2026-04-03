@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\TopicAttempt;
+use App\Services\Evaluation\AttemptEvaluationService;
 use App\Services\Progress\UserProgressService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,39 +18,61 @@ class EvaluateAttemptJob implements ShouldQueue
 
     public int $tries = 3;
 
+    /**
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [10, 30, 60];
+    }
+
     public function __construct(
         public int $attemptId,
     ) {}
 
-    public function handle(UserProgressService $progressService): void
+    public function handle(AttemptEvaluationService $evaluationService, UserProgressService $progressService): void
     {
         try {
             $attempt = TopicAttempt::findOrFail($this->attemptId);
+            $attempt->loadMissing('topic');
 
-            // Stub: assign dummy evaluation data
-            $score = 75;
             $attempt->update([
-                'score' => $score,
-                'passed' => $score >= config('evaluation.pass_threshold'),
-                'evaluation' => [
-                    'overall_score' => $score,
-                    'feedback' => 'Stub evaluation — real LLM evaluation coming in a later phase.',
-                    'criteria' => [
-                        'understanding' => 80,
-                        'completeness' => 70,
-                        'accuracy' => 75,
-                    ],
-                ],
-                'status' => 'completed',
+                'status' => 'evaluating',
+            ]);
+
+            $result = $evaluationService->evaluate($attempt);
+
+            $attempt->update([
+                'score' => $result->score,
+                'passed' => $result->passed,
+                'evaluation' => $result->toArray(),
+                'status' => 'complete',
                 'completed_at' => now(),
             ]);
 
             $progressService->updateAfterAttempt(
                 $attempt->user_id,
                 $attempt->topic_id,
-                $score,
+                $result->score,
             );
+
+            StoreModelAnswerInRagJob::dispatch(
+                attemptId: $attempt->id,
+                modelAnswer: $result->modelAnswer,
+                topicId: $attempt->topic_id,
+                topicTitle: $attempt->topic->title,
+            );
+
+            \Illuminate\Support\Facades\Cache::forget("progress:user:{$attempt->user_id}");
+            \Illuminate\Support\Facades\Cache::forget("attempt:status:{$attempt->id}");
         } catch (\Throwable $e) {
+            TopicAttempt::whereKey($this->attemptId)->update([
+                'status' => 'failed',
+                'evaluation' => [
+                    'error' => $e->getMessage(),
+                ],
+            ]);
+
             Log::error('EvaluateAttemptJob failed', [
                 'attempt_id' => $this->attemptId,
                 'error' => $e->getMessage(),
