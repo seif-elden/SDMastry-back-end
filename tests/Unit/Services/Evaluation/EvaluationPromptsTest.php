@@ -33,7 +33,7 @@ class EvaluationPromptsTest extends TestCase
         $this->assertStringContainsString('Respond ONLY with valid JSON', $prompt);
         $this->assertStringContainsString('"score": <average of both scores>', $prompt);
         $this->assertStringContainsString('"passed": <true if score >= 80>', $prompt);
-        $this->assertStringContainsString('"model_answer"', $prompt);
+        $this->assertStringContainsString('"notes"', $prompt);
         $this->assertStringContainsString('"rag_sources"', $prompt);
     }
 }

@@ -72,8 +72,17 @@ class ChatService
             $providerName = $provider->getProviderName();
             $assistantReply = $provider->chat($systemPrompt, $history);
 
-            $session->provider = $providerName;
-            $session->save();
+            try {
+                $session->provider = $providerName;
+                $session->save();
+            } catch (\Throwable $exception) {
+                Log::notice('Chat provider metadata persistence skipped', [
+                    'attempt_id' => $attempt->id,
+                    'user_id' => $user->id,
+                    'provider' => $providerName,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         } catch (\Throwable $exception) {
             Log::warning('Chat provider call failed', [
                 'attempt_id' => $attempt->id,
@@ -126,12 +135,12 @@ class ChatService
             'created_at' => now(),
         ]);
 
-        $modelAnswer = trim((string) data_get($attempt->evaluation, 'model_answer', ''));
+        $notes = trim((string) data_get($attempt->evaluation, 'notes', data_get($attempt->evaluation, 'model_answer', '')));
 
-        if ($modelAnswer !== '') {
+        if ($notes !== '') {
             $session->messages()->create([
                 'role' => 'assistant',
-                'content' => $modelAnswer,
+                'content' => $notes,
                 'created_at' => now(),
             ]);
         }
@@ -166,7 +175,7 @@ class ChatService
         $weaknesses = is_array(data_get($evaluation, 'key_weaknesses')) ? data_get($evaluation, 'key_weaknesses') : [];
         $concepts = is_array(data_get($evaluation, 'concepts_to_study')) ? data_get($evaluation, 'concepts_to_study') : [];
         $sources = is_array(data_get($evaluation, 'rag_sources')) ? data_get($evaluation, 'rag_sources') : [];
-        $modelAnswer = trim((string) data_get($evaluation, 'model_answer', ''));
+        $notes = trim((string) data_get($evaluation, 'notes', data_get($evaluation, 'model_answer', '')));
 
         $guard = str_replace('{topic_title}', $topic->title, implode("\n", [
             'You are a software engineering tutor. The current topic is: {topic_title}.',
@@ -189,7 +198,7 @@ class ChatService
             'Key weaknesses: ' . implode(' | ', array_map(fn ($item) => (string) $item, $weaknesses)),
             'Concepts to study: ' . implode(' | ', array_map(fn ($item) => (string) $item, $concepts)),
             'Brief assessment: ' . (string) data_get($evaluation, 'brief_assessment', ''),
-            'Canonical model answer: ' . $modelAnswer,
+            'Canonical notes: ' . $notes,
             'Reference sources: ' . json_encode($sources, JSON_UNESCAPED_UNICODE),
             'When coaching, ground explanations in the weaknesses and concepts_to_study while staying topic-focused.',
         ]);

@@ -20,7 +20,7 @@ class EvaluationResult
         public readonly string $briefAssessment,
         public readonly string $promptToExplain,
         public readonly string $promptToNext,
-        public readonly string $modelAnswer,
+        public readonly string $notes,
         public readonly array $ragSources,
         public readonly array $rawEvaluation,
     ) {}
@@ -39,7 +39,7 @@ class EvaluationResult
             'brief_assessment' => $this->briefAssessment,
             'prompt_to_explain' => $this->promptToExplain,
             'prompt_to_next' => $this->promptToNext,
-            'model_answer' => $this->modelAnswer,
+            'notes' => $this->notes,
             'rag_sources' => $this->ragSources,
         ];
     }

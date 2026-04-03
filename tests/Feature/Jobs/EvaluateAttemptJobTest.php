@@ -171,7 +171,7 @@ class EvaluateAttemptJobTest extends TestCase
             briefAssessment: 'Strong but could be deeper.',
             promptToExplain: 'Ask me to explain consistency levels in detail',
             promptToNext: "Ready for quorum systems? Let's try it.",
-            modelAnswer: 'Model answer text',
+            notes: 'Notes text',
             ragSources: [['book' => 'DDIA', 'relevance' => '90%']],
             rawEvaluation: [],
         );

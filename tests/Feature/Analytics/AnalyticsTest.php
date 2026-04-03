@@ -167,7 +167,7 @@ class AnalyticsTest extends TestCase
                 briefAssessment: 'Solid answer',
                 promptToExplain: 'Explain consistency models',
                 promptToNext: 'Move to quorums',
-                modelAnswer: 'Model answer',
+                notes: 'Notes',
                 ragSources: [],
                 rawEvaluation: [],
             )

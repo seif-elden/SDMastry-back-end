@@ -62,7 +62,7 @@ class EvaluateAttemptJob implements ShouldQueue
             if (! $chatSession->messages()->exists()) {
                 $chatSession->messages()->create([
                     'role' => 'assistant',
-                    'content' => $result->modelAnswer,
+                    'content' => $result->notes,
                     'created_at' => now(),
                 ]);
             }

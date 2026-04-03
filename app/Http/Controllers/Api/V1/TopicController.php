@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\TopicDetailResource;
 use App\Http\Resources\TopicResource;
 use App\Models\Topic;
+use App\Models\TopicAttempt;
+use App\Models\UserTopicProgress;
 use App\Traits\ApiResponse;
 use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Http\JsonResponse;
@@ -24,13 +26,52 @@ class TopicController extends Controller
 
         $user = $request->user();
 
-        if ($user && $user->hasVerifiedEmail()) {
+        if (! $user) {
+            $token = $request->bearerToken();
+
+            if ($token) {
+                $tokenModel = PersonalAccessToken::findToken($token);
+                $tokenable = $tokenModel?->tokenable;
+                $user = $tokenable instanceof \App\Models\User ? $tokenable : null;
+
+                if ($user) {
+                    $request->setUserResolver(fn () => $user);
+                }
+            }
+        }
+
+        if ($user) {
+            $passThreshold = (int) config('evaluation.pass_threshold', 80);
+
             $progressMap = $user->topicProgress()
                 ->get()
                 ->keyBy('topic_id');
 
-            $topics->each(function ($topic) use ($progressMap) {
-                $topic->setRelation('currentUserProgress', collect([$progressMap->get($topic->id)])->filter());
+            $derivedProgressMap = TopicAttempt::query()
+                ->where('user_id', $user->id)
+                ->whereNotNull('score')
+                ->selectRaw('topic_id, MAX(score) as best_score, COUNT(*) as attempts_count, MAX(CASE WHEN passed = 1 THEN 1 ELSE 0 END) as passed_flag, MAX(CASE WHEN passed = 1 THEN completed_at ELSE NULL END) as passed_at')
+                ->groupBy('topic_id')
+                ->get()
+                ->mapWithKeys(function (TopicAttempt $attempt) use ($user, $passThreshold) {
+                    $bestScore = (int) ($attempt->best_score ?? 0);
+                    $passed = ((int) ($attempt->passed_flag ?? 0) === 1) || $bestScore >= $passThreshold;
+
+                    return [
+                        $attempt->topic_id => new UserTopicProgress([
+                            'user_id' => $user->id,
+                            'topic_id' => $attempt->topic_id,
+                            'best_score' => $bestScore,
+                            'attempts_count' => (int) ($attempt->attempts_count ?? 0),
+                            'passed' => $passed,
+                            'passed_at' => $attempt->passed_at,
+                        ]),
+                    ];
+                });
+
+            $topics->each(function ($topic) use ($progressMap, $derivedProgressMap) {
+                $progress = $progressMap->get($topic->id) ?? $derivedProgressMap->get($topic->id);
+                $topic->setRelation('currentUserProgress', collect([$progress])->filter());
             });
         } else {
             $topics->each(function ($topic) {

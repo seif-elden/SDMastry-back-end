@@ -39,17 +39,17 @@ class EvaluationPrompts
     public static function synthesizerPrompt(array $evalA, array $evalB, string $question, string $ragContext): string
     {
         return "You received two independent evaluations of a student's software engineering answer.\n"
-            . "Merge them into one final structured feedback with a model answer.\n"
+            . "Merge them into one final structured feedback with notes.\n"
             . "Question: {$question}\n"
             . "Reference Material: {$ragContext}\n"
             . 'Evaluation A: ' . json_encode($evalA, JSON_UNESCAPED_SLASHES) . "\n"
             . 'Evaluation B: ' . json_encode($evalB, JSON_UNESCAPED_SLASHES) . "\n\n"
-            . "Model answer requirements:\n"
+            . "Notes requirements:\n"
             . "- It must be a canonical top-tier answer that deserves 100/100.\n"
             . "- It must be direct answer content, not coaching, advice, or suggestions.\n"
             . "- Do not use phrases like 'you should', 'consider', 'try to', or instructions to the learner.\n"
             . "- Write 220-420 words with concrete technical details and trade-offs.\n"
-            . "- If a learner copies this model_answer verbatim, it should score 100.\n\n"
+            . "- If a learner copies these notes verbatim, it should score 100.\n\n"
             . "Respond ONLY with valid JSON:\n"
             . "{\n"
             . "  \"score\": <average of both scores>,\n"
@@ -59,10 +59,10 @@ class EvaluationPrompts
             . "  \"concepts_to_study\": [...merged unique concepts],\n"
             . "  \"prompt_to_explain\": \"Ask me to explain [most important weak concept] in detail\",\n"
             . "  \"prompt_to_next\": \"Ready for [suggest next logical topic]? Let's try it.\",\n"
-            . "  \"model_answer\": \"Concrete final answer text only (220-420 words), suitable for a 100/100 score.\",\n"
+            . "  \"notes\": \"Concrete final answer text only (220-420 words), suitable for a 100/100 score.\",\n"
             . "  \"rag_sources\": [{\"book\": \"\", \"relevance\": \"\"}]\n"
             . "}\n\n"
-            . "Important: Return concrete content for model_answer. Never return meta text like 'write a model answer' or placeholders.";
+            . "Important: Return concrete content for notes. Never return meta text like 'write notes' or placeholders.";
     }
 
     public static function canonicalModelAnswerPrompt(string $question, string $ragContext): string

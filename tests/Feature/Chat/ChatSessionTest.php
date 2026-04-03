@@ -20,7 +20,7 @@ class ChatSessionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_session_created_when_attempt_completes_with_model_answer_message(): void
+    public function test_session_created_when_attempt_completes_with_notes_message(): void
     {
         Bus::fake([StoreModelAnswerInRagJob::class]);
 
@@ -38,7 +38,7 @@ class ChatSessionTest extends TestCase
         $this->assertNotNull($attempt->chatSession);
         $this->assertCount(1, $attempt->chatSession->messages);
         $this->assertSame('assistant', $attempt->chatSession->messages->first()->role);
-        $this->assertSame('Model answer seed for chat.', $attempt->chatSession->messages->first()->content);
+        $this->assertSame('Notes seed for chat.', $attempt->chatSession->messages->first()->content);
     }
 
     public function test_owner_can_get_messages(): void
@@ -51,7 +51,7 @@ class ChatSessionTest extends TestCase
             'topic_id' => $topic->id,
             'answer_text' => str_repeat('Answer about CAP theorem. ', 5),
             'status' => 'complete',
-            'evaluation' => ['model_answer' => 'Model answer from evaluation'],
+            'evaluation' => ['notes' => 'Notes from evaluation'],
             'started_at' => now(),
             'completed_at' => now(),
         ]);
@@ -59,7 +59,7 @@ class ChatSessionTest extends TestCase
         $session = $attempt->chatSession()->create(['created_at' => now()]);
         $session->messages()->create([
             'role' => 'assistant',
-            'content' => 'Model answer from evaluation',
+            'content' => 'Notes from evaluation',
             'created_at' => now(),
         ]);
 
@@ -87,7 +87,7 @@ class ChatSessionTest extends TestCase
             'topic_id' => $topic->id,
             'answer_text' => str_repeat('Answer about CAP theorem. ', 5),
             'status' => 'complete',
-            'evaluation' => ['model_answer' => 'Model answer from evaluation'],
+            'evaluation' => ['notes' => 'Notes from evaluation'],
             'started_at' => now(),
             'completed_at' => now(),
         ]);
@@ -169,7 +169,7 @@ class ChatSessionTest extends TestCase
             briefAssessment: 'Assessment',
             promptToExplain: 'Explain',
             promptToNext: 'Next',
-            modelAnswer: 'Model answer seed for chat.',
+            notes: 'Notes seed for chat.',
             ragSources: [['book' => 'DDIA', 'relevance' => '90%']],
             rawEvaluation: [],
         );

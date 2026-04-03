@@ -9,12 +9,13 @@ class FixPlaceholderModelAnswers extends Command
 {
     protected $signature = 'evaluation:fix-placeholder-answers {--dry-run}';
 
-    protected $description = 'Find and remove placeholder model answers from evaluation records';
+    protected $description = 'Find and remove placeholder notes from evaluation records';
 
     public function handle(): int
     {
         $dryRun = $this->option('dry-run');
         $placeholders = [
+            'comprehensive 200-400 word notes grounded in the reference material',
             'comprehensive 200-400 word model answer grounded in the reference material',
             'the answer should connect core definitions, trade-offs, and practical implementation details while grounding claims in the supplied reference context.',
         ];
@@ -33,11 +34,11 @@ class FixPlaceholderModelAnswers extends Command
                 continue;
             }
 
-            $modelAnswer = strtolower(trim((string) ($evaluation['model_answer'] ?? '')));
+            $notes = strtolower(trim((string) ($evaluation['notes'] ?? $evaluation['model_answer'] ?? '')));
 
             $isPlaceholder = false;
             foreach ($placeholders as $placeholder) {
-                if ($modelAnswer === $placeholder) {
+                if ($notes === $placeholder) {
                     $isPlaceholder = true;
                     break;
                 }
@@ -51,13 +52,13 @@ class FixPlaceholderModelAnswers extends Command
             $this->line("Removing placeholder from attempt {$attempt->id} (score: {$attempt->score})");
 
             if (! $dryRun) {
-                $evaluation['model_answer'] = '[Placeholder removed - re-evaluation needed]';
+                $evaluation['notes'] = '[Placeholder removed - re-evaluation needed]';
                 $attempt->update(['evaluation' => $evaluation]);
             }
         }
 
         $mode = $dryRun ? '[DRY RUN] ' : '';
-        $this->info("{$mode}Found and fixed {$fixedCount} attempts with placeholder model answers.");
+        $this->info("{$mode}Found and fixed {$fixedCount} attempts with placeholder notes.");
 
         return 0;
     }

@@ -203,7 +203,7 @@ class BadgeServiceTest extends TestCase
             'answer_text' => 'Test answer',
             'score' => $score,
             'passed' => $passed,
-            'evaluation' => ['model_answer' => 'Model answer'],
+            'evaluation' => ['notes' => 'Notes'],
             'status' => 'complete',
             'started_at' => $startedAt,
             'completed_at' => $completedAt,

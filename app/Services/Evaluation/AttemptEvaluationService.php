@@ -66,7 +66,7 @@ class AttemptEvaluationService
             briefAssessment: $final['brief_assessment'],
             promptToExplain: $final['prompt_to_explain'],
             promptToNext: $final['prompt_to_next'],
-            modelAnswer: $final['model_answer'],
+            notes: $final['notes'],
             ragSources: $final['rag_sources'],
             rawEvaluation: $final,
         );
@@ -175,6 +175,10 @@ class AttemptEvaluationService
      */
     private function isValidFinalJson(mixed $parsed): bool
     {
+        $notes = is_array($parsed)
+            ? (string) ($parsed['notes'] ?? $parsed['model_answer'] ?? '')
+            : '';
+
         return is_array($parsed)
             && isset(
                 $parsed['score'],
@@ -184,7 +188,6 @@ class AttemptEvaluationService
                 $parsed['concepts_to_study'],
                 $parsed['prompt_to_explain'],
                 $parsed['prompt_to_next'],
-                $parsed['model_answer'],
                 $parsed['rag_sources'],
             )
             && is_numeric($parsed['score'])
@@ -194,9 +197,9 @@ class AttemptEvaluationService
             && is_array($parsed['concepts_to_study'])
             && is_string($parsed['prompt_to_explain'])
             && is_string($parsed['prompt_to_next'])
-            && is_string($parsed['model_answer'])
-                && ! $this->isWeakModelAnswer((string) $parsed['model_answer'])
-            && ! $this->isPlaceholderModelAnswer((string) $parsed['model_answer'])
+            && $notes !== ''
+            && ! $this->isWeakNotes($notes)
+            && ! $this->isPlaceholderNotes($notes)
             && is_array($parsed['rag_sources']);
     }
 
@@ -227,10 +230,10 @@ class AttemptEvaluationService
     ): array
     {
         $score = max(0, min(100, (int) $parsed['score']));
-        $modelAnswer = trim((string) $parsed['model_answer']);
+        $notes = trim((string) ($parsed['notes'] ?? $parsed['model_answer'] ?? ''));
 
-        if ($this->isWeakModelAnswer($modelAnswer)) {
-            $modelAnswer = $this->generateCanonicalModelAnswer($attempt, $provider, $bookChunks);
+        if ($this->isWeakNotes($notes)) {
+            $notes = $this->generateCanonicalNotes($attempt, $provider, $bookChunks);
         }
 
         return [
@@ -242,7 +245,7 @@ class AttemptEvaluationService
             'brief_assessment' => trim((string) ($parsed['brief_assessment'] ?? 'See key strengths and weaknesses.')),
             'prompt_to_explain' => trim((string) $parsed['prompt_to_explain']),
             'prompt_to_next' => trim((string) $parsed['prompt_to_next']),
-            'model_answer' => $modelAnswer,
+            'notes' => $notes,
             'rag_sources' => $this->normalizeRagSources($parsed['rag_sources']),
         ];
     }
@@ -273,7 +276,7 @@ class AttemptEvaluationService
             'brief_assessment' => 'The synthesizer returned malformed JSON. This fallback combines both evaluator outputs.',
             'prompt_to_explain' => 'Ask me to explain ' . $weakConcept . ' in detail',
             'prompt_to_next' => "Ready for the next advanced topic? Let's try it.",
-            'model_answer' => $this->generateCanonicalModelAnswer($attempt, $provider, $bookChunks),
+            'notes' => $this->generateCanonicalNotes($attempt, $provider, $bookChunks),
             'rag_sources' => $this->fallbackRagSources($bookChunks),
         ];
     }
@@ -344,16 +347,18 @@ class AttemptEvaluationService
         return $normalized;
     }
 
-    private function isPlaceholderModelAnswer(string $value): bool
+    private function isPlaceholderNotes(string $value): bool
     {
         $normalized = strtolower(trim($value));
 
-        return $normalized === 'comprehensive 200-400 word model answer grounded in the reference material'
+        return $normalized === 'comprehensive 200-400 word notes grounded in the reference material'
+            || $normalized === 'comprehensive 200-400 word model answer grounded in the reference material'
             || str_contains($normalized, 'do not output instructions or placeholders')
+            || str_starts_with($normalized, 'write actual 220-420 word notes')
             || str_starts_with($normalized, 'write an actual 200-400 word model answer');
     }
 
-    private function isWeakModelAnswer(string $value): bool
+    private function isWeakNotes(string $value): bool
     {
         $normalized = strtolower(trim($value));
 
@@ -374,7 +379,7 @@ class AttemptEvaluationService
     /**
      * @param  array<int, array{text: string, book: string, chapter: string, relevance_score: float}>  $bookChunks
      */
-    private function generateCanonicalModelAnswer(
+    private function generateCanonicalNotes(
         TopicAttempt $attempt,
         LLMProviderInterface $provider,
         array $bookChunks,
@@ -396,7 +401,7 @@ class AttemptEvaluationService
 
         $candidate = trim($raw);
 
-        if ($this->isWeakModelAnswer($candidate) || $this->isPlaceholderModelAnswer($candidate)) {
+        if ($this->isWeakNotes($candidate) || $this->isPlaceholderNotes($candidate)) {
             return 'A complete high-scoring answer states the core principle, explains trade-offs with concrete engineering consequences, and maps those trade-offs to practical implementation decisions under realistic constraints.';
         }
 

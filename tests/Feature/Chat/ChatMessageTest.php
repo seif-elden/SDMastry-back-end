@@ -112,7 +112,7 @@ class ChatMessageTest extends TestCase
             'topic_id' => $topic->id,
             'answer_text' => str_repeat('Attempt answer text. ', 5),
             'status' => 'complete',
-            'evaluation' => ['model_answer' => 'Initial model answer for context'],
+            'evaluation' => ['notes' => 'Initial notes for context'],
             'started_at' => now(),
             'completed_at' => now(),
         ]);

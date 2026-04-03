@@ -10,6 +10,7 @@ class TopicResource extends JsonResource
     public function toArray(Request $request): array
     {
         $user = $request->user();
+        $isAuthenticated = (bool) $user;
         $isVerified = $user && $user->hasVerifiedEmail();
 
         $data = [
@@ -25,7 +26,9 @@ class TopicResource extends JsonResource
 
         if (!$isVerified) {
             $data['locked'] = true;
-        } else {
+        }
+
+        if ($isAuthenticated) {
             $progress = $this->whenLoaded('currentUserProgress', function () {
                 $p = $this->currentUserProgress->first();
                 if ($p) {
